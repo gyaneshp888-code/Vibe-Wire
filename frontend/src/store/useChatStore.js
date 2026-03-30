@@ -33,10 +33,12 @@ export const useChatStore = create((set, get) => ({
       set({ isMessagesLoading: false });
     }
   },
+
   sendMessage: async (messageData) => {
     const { selectedUser, messages } = get();
     try {
       const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+      // Local state ko turant update karein
       set({ messages: [...messages, res.data] });
     } catch (error) {
       toast.error(error.response.data.message);
@@ -48,20 +50,26 @@ export const useChatStore = create((set, get) => ({
     if (!selectedUser) return;
 
     const socket = useAuthStore.getState().socket;
+    if (!socket) return;
+
+    // Pehle se lage hue listeners hatayein taaki duplicate messages na aayein
+    socket.off("newMessage");
 
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
-
-      set({
-        messages: [...get().messages, newMessage],
-      });
+      // Logic: Agar naya message usi user se hai jo abhi select hai, tabhi screen pe dikhao
+      const isMessageFromSelectedUser = newMessage.senderId === selectedUser._id;
+      
+      if (isMessageFromSelectedUser) {
+        set({
+          messages: [...get().messages, newMessage],
+        });
+      }
     });
   },
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
-    socket.off("newMessage");
+    if (socket) socket.off("newMessage");
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),
